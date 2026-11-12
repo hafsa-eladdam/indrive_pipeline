@@ -1,0 +1,30 @@
+from datetime import datetime
+
+from airflow import DAG
+from airflow.operators.python import PythonOperator
+
+from db import run_sql_file
+
+
+def sql_task(name):
+    return PythonOperator(
+        task_id=f"mart_{name}",
+        python_callable=run_sql_file,
+        op_args=[f"mart/{name}.sql"],
+    )
+
+
+with DAG(
+    dag_id="4_marts",
+    schedule=None,                  # pas de planification : déclenché par 3_staging
+    start_date=datetime(2026, 1, 1),
+    catchup=False,
+    max_active_runs=1,
+    tags=["indrive"],
+) as dag:
+
+    rides = sql_task("rides")
+    revenue_by_zone = sql_task("revenue_by_zone")
+    driver_leaderboard = sql_task("driver_leaderboard")
+
+    rides >> [revenue_by_zone, driver_leaderboard]

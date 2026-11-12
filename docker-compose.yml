@@ -1,0 +1,47 @@
+name: indrive_pipeline
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: indrive-postgres
+    environment:
+      POSTGRES_DB: indrive
+      POSTGRES_USER: indrive
+      POSTGRES_PASSWORD: indrive
+    volumes:
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql   # crée raw / staging / mart
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U indrive -d indrive"]
+      interval: 3s
+      retries: 20
+
+  adminer:
+    image: adminer
+    container_name: indrive-adminer
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+    depends_on: [postgres]
+    ports:
+      - "8085:8080"        # http://localhost:8085
+
+  airflow:
+    image: apache/airflow:2.9.3
+    container_name: indrive-airflow
+    command: standalone
+    environment:
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"                # cache les DAGs de démo
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "false"   # nos DAGs démarrent seuls
+      PG_HOST: postgres        # comment les DAGs trouvent la base
+      PG_DB: indrive
+      PG_USER: indrive
+      PG_PASSWORD: indrive
+      VERIFY_SSL: "true"       # mettre "false" si ton réseau bloque HTTPS
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./sql:/opt/airflow/sql
+      - ./data:/opt/airflow/data
+    ports:
+      - "8090:8080"        # http://localhost:8081
